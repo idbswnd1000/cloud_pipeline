@@ -1,24 +1,31 @@
-import { defineConfig, loadEnv } from "vite";
-import react from "@vitejs/plugin-react";
+import {
+  defineConfig,
+} from "vite";
 
-export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), "");
+import react
+  from "@vitejs/plugin-react";
 
-  return {
-    plugins: [react()],
 
-    server: {
-      proxy: {
-        "/api": {
-          target: env.VITE_API_TARGET,
-          changeOrigin: true,
-        },
+export default defineConfig({
+  plugins: [
+    react(),
+  ],
 
-        "/images": {
-          target: env.VITE_API_TARGET,
-          changeOrigin: true,
-        },
+  server: {
+    proxy: {
+      "/api": {
+        target:
+          "http://127.0.0.1:8000",
+
+        changeOrigin: true,
+      },
+
+      "/images": {
+        target:
+          "http://127.0.0.1:8000",
+
+        changeOrigin: true,
       },
     },
-  };
+  },
 });

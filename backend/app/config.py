@@ -8,21 +8,30 @@ ENV_FILE = BASE_DIR / ".env"
 
 
 class Settings(BaseSettings):
+
     # OpenAI
     openai_api_key: str
     openai_model: str = "gpt-4o-mini"
 
-    # Local Image
-    image_host_path: str = "./backend/images"
-
     # AWS
     aws_region: str = "ap-northeast-2"
-    aws_access_key_id: str | None = None
-    aws_secret_access_key: str | None = None
 
     # S3
-    s3_bucket_name: str = "admin-s3-resource"
+    s3_bucket_name: str = "admin-s3-pipe"
     s3_image_prefix: str = "images"
+
+    # PostgreSQL
+    database_url: str
+
+    # Redis
+    redis_url: str
+
+    # JWT
+    jwt_secret_key: str
+    jwt_algorithm: str = "HS256"
+
+    access_token_expire_minutes: int = 30
+    refresh_token_expire_days: int = 7
 
     model_config = SettingsConfigDict(
         env_file=str(ENV_FILE),
