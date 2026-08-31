@@ -1,12 +1,12 @@
 import base64
 import json
-from pathlib import Path
 
 from fastapi import UploadFile
 from openai import AsyncOpenAI
 
 from app.config import settings
 from app.imageRag.schema import ImageRagResponse
+from app.storage.s3 import s3_storage
 
 
 class ImageRagService:
@@ -14,13 +14,6 @@ class ImageRagService:
     def __init__(self):
         self.client = AsyncOpenAI(
             api_key=settings.openai_api_key
-        )
-
-        self.image_root = (
-            Path(__file__)
-            .resolve()
-            .parents[2]
-            / "images"
         )
 
     async def analyze_image(
@@ -39,6 +32,7 @@ class ImageRagService:
             or "image/jpeg"
         )
 
+        # S3 images/ 아래 음식 폴더 목록
         food_names = self._get_food_names()
 
         response = await self.client.chat.completions.create(
@@ -115,6 +109,7 @@ food_name은 가능한 경우 반드시
             "",
         )
 
+        # S3 폴더 매칭
         matched_folder = self._find_folder(
             food_name
         )
@@ -129,48 +124,35 @@ food_name은 가능한 경우 반드시
         return ImageRagResponse(
             food_name=food_name,
             description=description,
-            matched_folder=(
-                matched_folder.name
-                if matched_folder
-                else None
-            ),
+            matched_folder=matched_folder,
             images=images,
         )
 
     def _get_food_names(self) -> list[str]:
+        """
+        S3
+        admin-s3-pipe/images/
+        아래 음식 폴더 목록 조회
+        """
 
-        if not self.image_root.exists():
-            return []
-
-        return [
-            folder.name
-            for folder in self.image_root.iterdir()
-            if folder.is_dir()
-        ]
+        return s3_storage.list_folders()
 
     def _find_folder(
         self,
         food_name: str,
-    ) -> Path | None:
+    ) -> str | None:
 
-        if not self.image_root.exists():
-            return None
+        folders = self._get_food_names()
 
-        exact_folder = (
-            self.image_root / food_name
-        )
+        # 정확히 일치
+        if food_name in folders:
+            return food_name
 
-        if exact_folder.is_dir():
-            return exact_folder
-
-        for folder in self.image_root.iterdir():
-
-            if not folder.is_dir():
-                continue
-
+        # 부분 일치
+        for folder in folders:
             if (
-                food_name in folder.name
-                or folder.name in food_name
+                food_name in folder
+                or folder in food_name
             ):
                 return folder
 
@@ -178,7 +160,7 @@ food_name은 가능한 경우 반드시
 
     def _get_images(
         self,
-        folder: Path,
+        folder_name: str,
     ) -> list[str]:
 
         allowed_extensions = {
@@ -188,20 +170,46 @@ food_name은 가능한 경우 반드시
             ".webp",
         }
 
+        # ex:
+        # images/갈비구이/1.jpg
+        # images/갈비구이/2.jpg
+        files = s3_storage.list_files(
+            folder_name
+        )
+
         images = []
 
-        for file in folder.iterdir():
+        for key in files:
 
-            if (
-                file.is_file()
-                and file.suffix.lower()
-                in allowed_extensions
-            ):
-                images.append(
-                    f"/images/"
-                    f"{folder.name}/"
-                    f"{file.name}"
-                )
+            extension = (
+                "." + key.rsplit(".", 1)[-1].lower()
+                if "." in key
+                else ""
+            )
+
+            if extension not in allowed_extensions:
+                continue
+
+            # s3.py의 _build_key가 images/를 다시 붙이기 때문에
+            # images/ 부분 제거
+            relative_path = key
+
+            prefix = (
+                settings.s3_image_prefix
+                .strip("/")
+                + "/"
+            )
+
+            if relative_path.startswith(prefix):
+                relative_path = relative_path[
+                    len(prefix):
+                ]
+
+            url = s3_storage.get_presigned_url(
+                relative_path
+            )
+
+            images.append(url)
 
         return images[:10]
 

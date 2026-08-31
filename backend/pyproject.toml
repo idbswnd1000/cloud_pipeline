@@ -10,4 +10,5 @@ dependencies = [
     "pydantic-settings",
     "python-multipart",
     "numpy",
+    "boto3>=1.43.83",
 ]
