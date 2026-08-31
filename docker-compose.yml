@@ -1,0 +1,63 @@
+services:
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+
+    container_name: pipeline-backend
+
+    env_file:
+      - .env
+
+    volumes:
+      - ${IMAGE_HOST_PATH:-./backend/images}:/app/images:ro
+
+    expose:
+      - "8000"
+
+    restart: unless-stopped
+
+    networks:
+      - pipeline-network
+
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+
+    container_name: pipeline-frontend
+
+    expose:
+      - "3000"
+
+    restart: unless-stopped
+
+    networks:
+      - pipeline-network
+
+
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+
+    container_name: pipeline-nginx
+
+    ports:
+      - "80:80"
+
+    depends_on:
+      - backend
+      - frontend
+
+    restart: unless-stopped
+
+    networks:
+      - pipeline-network
+
+
+networks:
+  pipeline-network:
+    driver: bridge
